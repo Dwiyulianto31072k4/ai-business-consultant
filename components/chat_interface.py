@@ -1,12 +1,13 @@
 # UI chat interface
 import streamlit as st
-from langchain.callbacks import get_openai_callback
 import re
 import logging
 from datetime import datetime
+from langchain.callbacks import get_openai_callback
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def format_response(text: str) -> str:
     """Memformat respons untuk tampilan yang lebih baik"""
@@ -26,14 +27,6 @@ def format_response(text: str) -> str:
 def build_prompt_with_history(query: str, history: list = None, max_history: int = 5):
     """
     Membuat prompt dengan konteks riwayat percakapan sebelumnya
-    
-    Args:
-        query: Pertanyaan saat ini
-        history: Riwayat chat dalam format [(role, content), ...]
-        max_history: Jumlah maksimum pesan sebelumnya yang akan disertakan
-        
-    Returns:
-        Prompt yang sudah berisi konteks
     """
     # Siapkan konteks riwayat chat
     chat_history_text = ""
@@ -72,7 +65,7 @@ def process_query(query: str):
                 from utils.web_search import search_and_summarize
                 return search_and_summarize(query), []
             except Exception as e:
-                logging.error(f"Error pada pencarian web: {str(e)}")
+                logger.error(f"Error pada pencarian web: {str(e)}")
                 return f"⚠️ Gagal melakukan pencarian web: {str(e)}", []
         
         # Jika ada file yang diproses, gunakan ConversationalRetrievalChain
@@ -80,7 +73,7 @@ def process_query(query: str):
             try:
                 with get_openai_callback() as cb:
                     # Log untuk debugging
-                    logging.info("Menggunakan ConversationalRetrievalChain dengan RAG")
+                    logger.info("Menggunakan ConversationalRetrievalChain dengan RAG")
                     
                     # Kirim pertanyaan dengan konteks
                     result = st.session_state.conversation({
@@ -116,7 +109,7 @@ def process_query(query: str):
                     
                     return response, source_docs
             except Exception as e:
-                logging.error(f"Error saat menggunakan RAG: {str(e)}")
+                logger.error(f"Error saat menggunakan RAG: {str(e)}")
                 return f"⚠️ Terjadi kesalahan saat menggunakan database dokumen: {str(e)}", []
                 
         # Jika tidak ada file (mode chat biasa), gunakan LLM dengan konteks riwayat
@@ -132,7 +125,7 @@ def process_query(query: str):
                 prompt = build_prompt_with_history(query, history)
                 
                 # Log untuk debugging
-                logging.info(f"Menggunakan LLM langsung dengan {len(history)} riwayat chat")
+                logger.info(f"Menggunakan LLM langsung dengan {len(history)} riwayat chat")
                 
                 # Jalankan LLM
                 result = st.session_state.llm.invoke(prompt)
@@ -154,8 +147,7 @@ def process_query(query: str):
                 return response, []
                 
     except Exception as e:
-        import logging
-        logging.error(f"Error saat memproses pertanyaan: {str(e)}")
+        logger.error(f"Error saat memproses pertanyaan: {str(e)}")
         return f"⚠️ Terjadi kesalahan: {str(e)}", []
 
 def render_chat_interface():
