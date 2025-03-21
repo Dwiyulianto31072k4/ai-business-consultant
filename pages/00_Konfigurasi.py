@@ -50,6 +50,57 @@ def test_openai_connection(api_key):
     except Exception as e:
         return False, f"Gagal terhubung ke OpenAI: {str(e)}"
 
+# Fungsi test koneksi untuk Groq
+def test_groq_connection(api_key):
+    """Test koneksi ke Groq dan cek model yang tersedia"""
+    if not api_key:
+        return False, "API key tidak boleh kosong"
+    
+    try:
+        from groq import Groq
+        client = Groq(api_key=api_key)
+        
+        # Coba mendapatkan daftar model yang tersedia
+        try:
+            # Jika API memiliki endpoint untuk mendapatkan models
+            models = client.models.list()
+            model_names = [model.id for model in models.data]
+            return True, f"Koneksi berhasil! Model tersedia: {', '.join(model_names[:3])}..."
+        except (AttributeError, TypeError):
+            # Jika tidak bisa mendapatkan daftar model, coba model populer
+            try:
+                # Coba model Llama 3
+                response = client.chat.completions.create(
+                    model="llama3-8b-8192",
+                    messages=[{"role": "user", "content": "Hello"}],
+                    max_tokens=5
+                )
+                return True, "Koneksi berhasil dengan model llama3-8b-8192!"
+            except Exception:
+                # Coba model Mixtral
+                try:
+                    response = client.chat.completions.create(
+                        model="mixtral-8x7b-32768",
+                        messages=[{"role": "user", "content": "Hello"}],
+                        max_tokens=5
+                    )
+                    return True, "Koneksi berhasil dengan model mixtral-8x7b-32768!"
+                except Exception:
+                    # Sebagai upaya terakhir, gunakan model Gemma
+                    try:
+                        response = client.chat.completions.create(
+                            model="gemma-7b-it",
+                            messages=[{"role": "user", "content": "Hello"}],
+                            max_tokens=5
+                        )
+                        return True, "Koneksi berhasil dengan model gemma-7b-it!"
+                    except Exception as e:
+                        return False, f"Tidak dapat menemukan model yang tersedia: {str(e)}"
+    except ImportError:
+        return False, "Module groq tidak tersedia. Install dengan: pip install groq"
+    except Exception as e:
+        return False, f"Gagal terhubung ke Groq: {str(e)}"
+
 # Inisialisasi session state jika belum ada
 if "api_keys" not in st.session_state:
     st.session_state.api_keys = {
@@ -85,7 +136,7 @@ provider_info = {
     "groq": {
         "name": "Groq",
         "url": "https://console.groq.com/keys",
-        "models": ["Llama 2 70B", "Mixtral 8x7B"],
+        "models": ["Llama 3 8B", "Mixtral 8x7B", "Llama 3 70B", "Gemma 7B"],
         "info": "Provider AI dengan latensi rendah dan throughput tinggi."
     },
     "huggingface": {
@@ -154,16 +205,12 @@ for provider, info in provider_info.items():
                                 st.warning("Module anthropic tidak tersedia. Install dengan: pip install anthropic")
                                 
                         elif provider == "groq":
-                            try:
-                                from groq import Groq
-                                client = Groq(api_key=api_key)
-                                # Hanya verifikasi API key tanpa memanggil API
-                                if client.api_key == api_key:
-                                    st.success("✅ API key Groq berhasil dikonfigurasi")
-                                else:
-                                    st.error("❌ API key tidak valid")
-                            except ImportError:
-                                st.warning("Module groq tidak tersedia. Install dengan: pip install groq")
+                            # Gunakan fungsi test Groq yang ditingkatkan
+                            success, message = test_groq_connection(api_key)
+                            if success:
+                                st.success(f"✅ {message}")
+                            else:
+                                st.error(f"❌ {message}")
                                 
                         elif provider == "huggingface":
                             try:
@@ -223,8 +270,10 @@ model_options = {
         "claude-3-haiku-20240307": "Claude 3 Haiku (Fast)"
     },
     "groq": {
-        "llama2-70b-4096": "Llama 2 70B",
-        "mixtral-8x7b-32768": "Mixtral 8x7B"
+        "llama3-8b-8192": "Llama 3 8B (Fast)",
+        "mixtral-8x7b-32768": "Mixtral 8x7B (Balanced)",
+        "llama3-70b-8192": "Llama 3 70B (Powerful)",
+        "gemma-7b-it": "Gemma 7B Instruct"
     },
     "huggingface": {
         "mistralai/Mistral-7B-Instruct-v0.2": "Mistral 7B",
@@ -251,6 +300,15 @@ selected_model = st.selectbox(
 
 # Update model in session state
 st.session_state.current_model = selected_model
+
+# Tampilkan info ketika model Groq dipilih
+if selected_provider == "groq":
+    st.info("""
+    ℹ️ **Info Groq Model**: 
+    - Model-model Groq memiliki format nama yang spesifik dan bisa berubah
+    - Jika mengalami error "model not found", silakan pilih model lain yang tersedia
+    - Llama 3 8B dan Mixtral 8x7B biasanya tersedia untuk semua pengguna
+    """)
 
 # Informasi tambahan
 st.info("""
