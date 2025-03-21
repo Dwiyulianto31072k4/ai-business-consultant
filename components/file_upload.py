@@ -1,13 +1,12 @@
-# Kembalikan retriever
-            return vectorstore.as_retriever(
-                search_type="similarity",
-                search_kwargs={"k": 5}
-            )
-            
-    except Exception as e:
-        logging.error(f"Error memproses file: {str(e)}")
-        st.error(f"❌ Gagal memproses file: {str(e)}")
-        return None
+import streamlit as st
+import logging
+import os
+from langchain.chains import ConversationalRetrievalChain
+from langchain.prompts import PromptTemplate
+from utils.file_processing import process_file, get_secure_temp_file
+
+# Konfigurasi logging
+logging.basicConfig(level=logging.INFO)
 
 def init_chain(retriever):
     """Inisialisasi ConversationalRetrievalChain"""
