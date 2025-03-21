@@ -28,7 +28,10 @@ def init_chain(retriever):
     
     Berikan jawaban yang komprehensif, akurat, dan bermanfaat berdasarkan informasi yang diberikan.
     Jika jawaban tidak ditemukan dalam informasi yang tersedia, katakan dengan jujur bahwa
-    kamu tidak dapat menjawab berdasarkan dokumen yang diunggah.
+    kamu tidak dapat menjawab berdasarkan dokumen yang diunggah, tapi berikan jawaban berdasarkan pengetahuan umummu.
+    
+    Selalu ingat konteks dari percakapan sebelumnya dan jawaban-jawaban sebelumnya untuk memberikan
+    jawaban yang konsisten dan berkualitas.
     
     Berikan format yang rapi dengan poin-poin dan penekanan pada bagian penting.
     """
@@ -39,6 +42,10 @@ def init_chain(retriever):
     )
 
     try:
+        # Log untuk debugging
+        logging.info("Menginisialisasi ConversationalRetrievalChain dengan retriever")
+        
+        # Buat chain dengan memory yang sudah disediakan
         chain = ConversationalRetrievalChain.from_llm(
             llm=st.session_state.llm,
             retriever=retriever,
@@ -48,6 +55,8 @@ def init_chain(retriever):
             verbose=True
         )
 
+        # Log sukses
+        logging.info("ConversationalRetrievalChain berhasil diinisialisasi")
         return chain
 
     except Exception as e:
@@ -86,9 +95,24 @@ def render_file_upload():
             
             if st.session_state.retriever:
                 st.session_state.file_processed = True
+                
+                # Reset memory untuk percakapan baru dengan dokumen
+                from utils.llm_providers import init_memory
+                st.session_state.memory = init_memory(st.session_state.llm)
+                
+                # Simpan informasi file
+                st.session_state.file_info = st.session_state.file_info or {}
+                st.session_state.file_info["filename"] = uploaded_file.name
+                
                 # Initialize conversation chain
                 st.session_state.conversation = init_chain(st.session_state.retriever)
-                st.success("✅ Dokumen berhasil diproses dan siap digunakan untuk konsultasi!")
+                
+                if st.session_state.conversation:
+                    st.success("✅ Dokumen berhasil diproses dan siap digunakan untuk konsultasi!")
+                    # Reset riwayat chat untuk memulai percakapan baru dengan dokumen
+                    st.session_state.history = []
+                else:
+                    st.error("❌ Gagal menginisialisasi conversation chain. Coba lagi atau periksa API key.")
     
     # Tampilkan informasi file jika sudah diproses
     if st.session_state.get("file_processed", False) and st.session_state.get("file_info"):
@@ -100,21 +124,21 @@ def render_file_upload():
         
         with col1:
             st.metric("📄 Nama File", info["filename"])
-            st.metric("📏 Ukuran", f"{info['size_mb']} MB")
+            st.metric("📏 Ukuran", f"{info.get('size_mb', 'N/A')} MB")
         
         with col2:
-            st.metric("📚 Jumlah Halaman/Baris", info["doc_count"])
-            st.metric("🧩 Jumlah Chunks", info["chunk_count"])
+            st.metric("📚 Jumlah Halaman/Baris", info.get("doc_count", "N/A"))
+            st.metric("🧩 Jumlah Chunks", info.get("chunk_count", "N/A"))
             
         with col3:
-            st.metric("⏱️ Waktu Proses", f"{info['processing_time']} detik")
-            estimated_queries = info["chunk_count"] * 2
+            st.metric("⏱️ Waktu Proses", f"{info.get('processing_time', 'N/A')} detik")
+            estimated_queries = info.get("chunk_count", 10) * 2
             st.metric("🔍 Estimasi Kapasitas Query", f"~{estimated_queries} pertanyaan")
             
         st.info("💡 Dokumen Anda telah dikonversi menjadi basis pengetahuan AI. Anda sekarang dapat mengajukan pertanyaan tentang isinya di tab Chat.")
 
         # Visualisasi jika file adalah CSV
-        if info["filename"].lower().endswith('.csv'):
+        if info["filename"].lower().endswith('.csv') and uploaded_file is not None:
             import pandas as pd
             from utils.visualization import create_visualization
             
