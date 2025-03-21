@@ -15,7 +15,7 @@ Konsultan bisnis AI yang dapat membantu Anda dengan strategi bisnis,
 analisis data, pemasaran, keuangan, dan rekomendasi berdasarkan dokumen yang Anda unggah.
 """)
 
-st.write("Aplikasi sedang dalam pengembangan. Fitur akan segera tersedia.")
+st.info("Aplikasi sedang dalam pengembangan. Fitur akan segera tersedia.")
 
 # Inisialisasi sidebar sederhana
 with st.sidebar:
@@ -35,3 +35,7 @@ with st.sidebar:
         options=list(model_options.keys()),
         format_func=lambda x: model_options[x]
     )
+    
+    # Button
+    if st.button("🔄 Reset"):
+        st.success("Aplikasi direset!")
