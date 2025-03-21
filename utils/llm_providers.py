@@ -91,8 +91,21 @@ class AIProviderFactory:
             return None
     
     @staticmethod
-    def _get_huggingface_provider(api_key, model_name, temperature):
-        """Buat HuggingFace provider"""
+def _get_huggingface_provider(api_key, model_name, temperature):
+    """Buat HuggingFace provider"""
+    try:
+        # Perbaikan: Menggunakan import yang benar
+        from langchain_huggingface import HuggingFaceEndpoint
+        # Alternatif fallback jika langchain_huggingface tidak tersedia
+        # from langchain_community.llms import HuggingFaceHub
+        
+        return HuggingFaceEndpoint(
+            huggingfacehub_api_token=api_key,
+            repo_id=model_name,
+            model_kwargs={"temperature": temperature}
+        )
+    except ImportError:
+        # Fallback ke provider lama jika import gagal
         try:
             from langchain_community.llms import HuggingFaceHub
             
@@ -104,6 +117,9 @@ class AIProviderFactory:
         except Exception as e:
             st.error(f"Error saat membuat provider HuggingFace: {str(e)}")
             return None
+    except Exception as e:
+        st.error(f"Error saat membuat provider HuggingFace: {str(e)}")
+        return None
 
 def init_memory(llm=None, max_token_limit=3000):
     """Inisialisasi memory dengan batasan token"""
