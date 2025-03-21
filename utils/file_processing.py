@@ -1,42 +1,23 @@
-import os
-import tempfile
-import hashlib
-import logging
 import streamlit as st
+# Komentar impor yang bermasalah untuk sementara
+# from utils.file_processing import process_file
+# from components.sidebar import render_sidebar
+# from components.chat_interface import render_chat_interface
+# from components.file_upload import render_file_upload
 
-def sanitize_filename(filename: str) -> str:
-    return hashlib.md5(filename.encode()).hexdigest()
+# Konfigurasi halaman
+st.set_page_config(
+    page_title="AI Business Consultant Pro",
+    page_icon="💼",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-def get_secure_temp_file(uploaded_file):
-    temp_dir = tempfile.gettempdir()
-    secure_filename = sanitize_filename(uploaded_file.name)
-    extension = os.path.splitext(uploaded_file.name)[1]
-    temp_file_path = os.path.join(temp_dir, f"{secure_filename}{extension}")
-    
-    with open(temp_file_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    
-    if "temp_files" not in st.session_state:
-        st.session_state.temp_files = []
-    st.session_state.temp_files.append(temp_file_path)
-    
-    return temp_file_path
+# Main content
+st.title("💼 AI Business Consultant Pro")
+st.markdown("""
+Konsultan bisnis AI yang dapat membantu Anda dengan strategi bisnis, 
+analisis data, pemasaran, keuangan, dan rekomendasi berdasarkan dokumen yang Anda unggah.
+""")
 
-def cleanup_temp_files():
-    if "temp_files" in st.session_state:
-        for file_path in st.session_state.temp_files:
-            try:
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    logging.info(f"File berhasil dihapus: {file_path}")
-            except Exception as e:
-                logging.error(f"Gagal menghapus file: {file_path} - {str(e)}")
-        st.session_state.temp_files = []
-
-def process_file(uploaded_file, chunk_size=500, chunk_overlap=50):
-    try:
-        return None
-    except Exception as e:
-        logging.error(f"Error memproses file: {str(e)}")
-        st.error(f"❌ Gagal memproses file: {str(e)}")
-        return None
+st.write("Aplikasi sedang dalam pengembangan. Fitur akan segera tersedia.")
