@@ -2,6 +2,7 @@
 import streamlit as st
 from langchain_openai import ChatOpenAI
 from langchain.memory import ConversationTokenBufferMemory
+import logging
 
 class AIProviderFactory:
     """Factory untuk membuat berbagai provider AI"""
@@ -33,7 +34,7 @@ class AIProviderFactory:
             
         elif provider_name == "groq":
             if not model_name:
-                model_name = "llama2-70b-4096"
+                model_name = "llama3-8b-8192"  # Default model yang diperbarui
             return AIProviderFactory._get_groq_provider(api_key, model_name, temperature, max_tokens)
             
         elif provider_name == "huggingface":
@@ -76,16 +77,66 @@ class AIProviderFactory:
     
     @staticmethod
     def _get_groq_provider(api_key, model_name, temperature, max_tokens):
-        """Buat Groq provider"""
+        """Buat Groq provider dengan fallback jika model tidak tersedia"""
         try:
             from langchain_groq import ChatGroq
             
-            return ChatGroq(
-                api_key=api_key,
-                model_name=model_name,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
+            # Coba inisialisasi dengan model yang dipilih
+            try:
+                provider = ChatGroq(
+                    api_key=api_key,
+                    model_name=model_name,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                
+                # Uji model dengan request kecil untuk memastikan model ada
+                from groq import Groq
+                client = Groq(api_key=api_key)
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=[{"role": "user", "content": "Hello"}],
+                    max_tokens=5
+                )
+                
+                return provider
+            except Exception as e:
+                # Jika model tidak tersedia, coba model alternatif
+                fallback_models = [
+                    "llama3-8b-8192",     # Llama 3 8B (biasanya tersedia)
+                    "mixtral-8x7b-32768", # Mixtral (biasanya tersedia)
+                    "gemma-7b-it"         # Gemma (biasanya tersedia)
+                ]
+                
+                # Jangan gunakan model yang sudah gagal
+                if model_name in fallback_models:
+                    fallback_models.remove(model_name)
+                
+                # Coba model-model alternatif
+                for fallback_model in fallback_models:
+                    try:
+                        st.warning(f"Model {model_name} tidak tersedia, mencoba model {fallback_model}")
+                        
+                        # Test model terlebih dahulu
+                        client = Groq(api_key=api_key)
+                        client.chat.completions.create(
+                            model=fallback_model,
+                            messages=[{"role": "user", "content": "Hello"}],
+                            max_tokens=5
+                        )
+                        
+                        # Model berhasil, gunakan sebagai fallback
+                        return ChatGroq(
+                            api_key=api_key,
+                            model_name=fallback_model,
+                            temperature=temperature,
+                            max_tokens=max_tokens
+                        )
+                    except Exception:
+                        continue
+                
+                # Jika semua model gagal
+                raise ValueError(f"Tidak ada model Groq yang tersedia. Error awal: {str(e)}")
         except Exception as e:
             st.error(f"Error saat membuat provider Groq: {str(e)}")
             return None
@@ -103,19 +154,8 @@ class AIProviderFactory:
                 model_kwargs={"temperature": temperature}
             )
         except Exception as e:
-            st.warning(f"Tidak dapat menggunakan HuggingFaceHub: {str(e)}")
-            try:
-                # Fallback ke langchain.llms
-                from langchain.llms import HuggingFaceHub as HFHub
-                
-                return HFHub(
-                    huggingfacehub_api_token=api_key,
-                    repo_id=model_name,
-                    model_kwargs={"temperature": temperature}
-                )
-            except Exception as e2:
-                st.error(f"Error saat membuat provider HuggingFace: {str(e2)}")
-                return None
+            st.error(f"Error saat membuat provider HuggingFace: {str(e)}")
+            return None
 
 def init_memory(llm=None, max_token_limit=3000):
     """Inisialisasi memory dengan batasan token"""
