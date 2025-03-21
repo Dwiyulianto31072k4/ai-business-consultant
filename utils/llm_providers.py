@@ -91,22 +91,10 @@ class AIProviderFactory:
             return None
     
     @staticmethod
-def _get_huggingface_provider(api_key, model_name, temperature):
-    """Buat HuggingFace provider"""
-    try:
-        # Perbaikan: Menggunakan import yang benar
-        from langchain_huggingface import HuggingFaceEndpoint
-        # Alternatif fallback jika langchain_huggingface tidak tersedia
-        # from langchain_community.llms import HuggingFaceHub
-        
-        return HuggingFaceEndpoint(
-            huggingfacehub_api_token=api_key,
-            repo_id=model_name,
-            model_kwargs={"temperature": temperature}
-        )
-    except ImportError:
-        # Fallback ke provider lama jika import gagal
+    def _get_huggingface_provider(api_key, model_name, temperature):
+        """Buat HuggingFace provider"""
         try:
+            # Coba menggunakan langchain_community terlebih dahulu
             from langchain_community.llms import HuggingFaceHub
             
             return HuggingFaceHub(
@@ -115,11 +103,19 @@ def _get_huggingface_provider(api_key, model_name, temperature):
                 model_kwargs={"temperature": temperature}
             )
         except Exception as e:
-            st.error(f"Error saat membuat provider HuggingFace: {str(e)}")
-            return None
-    except Exception as e:
-        st.error(f"Error saat membuat provider HuggingFace: {str(e)}")
-        return None
+            st.warning(f"Tidak dapat menggunakan HuggingFaceHub: {str(e)}")
+            try:
+                # Fallback ke langchain.llms
+                from langchain.llms import HuggingFaceHub as HFHub
+                
+                return HFHub(
+                    huggingfacehub_api_token=api_key,
+                    repo_id=model_name,
+                    model_kwargs={"temperature": temperature}
+                )
+            except Exception as e2:
+                st.error(f"Error saat membuat provider HuggingFace: {str(e2)}")
+                return None
 
 def init_memory(llm=None, max_token_limit=3000):
     """Inisialisasi memory dengan batasan token"""
