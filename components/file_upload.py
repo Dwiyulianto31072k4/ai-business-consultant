@@ -7,6 +7,7 @@ from utils.file_processing import process_file, get_secure_temp_file
 
 # Konfigurasi logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def init_chain(retriever):
     """Inisialisasi ConversationalRetrievalChain"""
@@ -43,7 +44,7 @@ def init_chain(retriever):
 
     try:
         # Log untuk debugging
-        logging.info("Menginisialisasi ConversationalRetrievalChain dengan retriever")
+        logger.info("Menginisialisasi ConversationalRetrievalChain dengan retriever")
         
         # Buat chain dengan memory yang sudah disediakan
         chain = ConversationalRetrievalChain.from_llm(
@@ -56,11 +57,11 @@ def init_chain(retriever):
         )
 
         # Log sukses
-        logging.info("ConversationalRetrievalChain berhasil diinisialisasi")
+        logger.info("ConversationalRetrievalChain berhasil diinisialisasi")
         return chain
 
     except Exception as e:
-        logging.error(f"Error inisialisasi chain: {str(e)}")
+        logger.error(f"Error inisialisasi chain: {str(e)}")
         st.error(f"❌ Gagal menginisialisasi chain: {str(e)}")
         return None
 
