@@ -3,6 +3,7 @@ import streamlit as st
 from langchain.callbacks import get_openai_callback
 import re
 import logging
+from datetime import datetime
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -22,68 +23,118 @@ def format_response(text: str) -> str:
     
     return text
 
+def build_prompt_with_history(query: str, history: list = None, max_history: int = 5):
+    """
+    Membuat prompt dengan konteks riwayat percakapan sebelumnya
+    
+    Args:
+        query: Pertanyaan saat ini
+        history: Riwayat chat dalam format [(role, content), ...]
+        max_history: Jumlah maksimum pesan sebelumnya yang akan disertakan
+        
+    Returns:
+        Prompt yang sudah berisi konteks
+    """
+    # Siapkan konteks riwayat chat
+    chat_history_text = ""
+    if history and len(history) > 0:
+        # Ambil beberapa pesan terakhir (tapi tidak terlalu banyak)
+        recent_history = history[-min(max_history*2, len(history)):]
+        
+        for i, (role, message) in enumerate(recent_history):
+            role_display = "User" if role == "user" else "AI"
+            chat_history_text += f"{role_display}: {message}\n\n"
+    
+    # Buat prompt dengan konteks
+    prompt = f"""
+    Kamu adalah AI Business Consultant Pro yang profesional dan membantu.
+    
+    Nama kamu adalah "Business AI Pro" dan kamu memiliki pengalaman luas di bidang strategi bisnis,
+    pemasaran, keuangan, manajemen, dan pengembangan produk.
+    
+    {"Berikut adalah konteks percakapan sebelumnya:\n\n" + chat_history_text if chat_history_text else ""}
+    
+    Pertanyaan pengguna saat ini: {query}
+    
+    Berikan jawaban yang komprehensif, terstruktur, dan bermanfaat.
+    Pastikan kamu mengacu pada konteks percakapan sebelumnya ketika relevan.
+    Format respons menggunakan Markdown untuk meningkatkan keterbacaan.
+    """
+    
+    return prompt
+
 def process_query(query: str):
     """Memproses kueri dan menangani output."""
     try:
-        # Perbarui timestamp aktivitas terakhir
-        from datetime import datetime
-        from utils.web_search import search_internet_real, search_and_summarize
-        
         # Deteksi jika ada permintaan pencarian web
         if any(keyword in query.lower() for keyword in ["cari di internet", "search online", "cari online"]):
-            return search_and_summarize(query), []
+            try:
+                from utils.web_search import search_and_summarize
+                return search_and_summarize(query), []
+            except Exception as e:
+                logging.error(f"Error pada pencarian web: {str(e)}")
+                return f"⚠️ Gagal melakukan pencarian web: {str(e)}", []
         
         # Jika ada file yang diproses, gunakan ConversationalRetrievalChain
         if st.session_state.get("file_processed", False) and st.session_state.get("conversation"):
-            with get_openai_callback() as cb:
-                result = st.session_state.conversation({"question": query})
-                
-                # Update token usage
-                if "token_usage" not in st.session_state:
-                    st.session_state.token_usage = {"total_tokens": 0, "prompt_tokens": 0, "completion_tokens": 0}
+            try:
+                with get_openai_callback() as cb:
+                    # Log untuk debugging
+                    logging.info("Menggunakan ConversationalRetrievalChain dengan RAG")
                     
-                st.session_state.token_usage["prompt_tokens"] += cb.prompt_tokens
-                st.session_state.token_usage["completion_tokens"] += cb.completion_tokens
-                st.session_state.token_usage["total_tokens"] += cb.total_tokens
-                
-                response = result["answer"]
-                source_docs = result.get("source_documents", [])
-                
-                # Format respons dengan Markdown untuk meningkatkan keterbacaan
-                response = format_response(response)
-                
-                # Tambahkan informasi sumber
-                if source_docs:
-                    sources = set()
-                    for doc in source_docs:
-                        if hasattr(doc, "metadata") and "source" in doc.metadata:
-                            sources.add(doc.metadata["source"])
+                    # Kirim pertanyaan dengan konteks
+                    result = st.session_state.conversation({
+                        "question": query, 
+                        "chat_history": [(h[0], h[1]) for h in st.session_state.get("history", [])][-10:] if st.session_state.get("history") else []
+                    })
                     
-                    if sources:
-                        response += "\n\n**Sumber:**\n"
-                        for source in sources:
-                            response += f"- {source}\n"
+                    # Update token usage
+                    if "token_usage" not in st.session_state:
+                        st.session_state.token_usage = {"total_tokens": 0, "prompt_tokens": 0, "completion_tokens": 0}
+                        
+                    st.session_state.token_usage["prompt_tokens"] += cb.prompt_tokens
+                    st.session_state.token_usage["completion_tokens"] += cb.completion_tokens
+                    st.session_state.token_usage["total_tokens"] += cb.total_tokens
+                    
+                    response = result["answer"]
+                    source_docs = result.get("source_documents", [])
+                    
+                    # Format respons dengan Markdown untuk meningkatkan keterbacaan
+                    response = format_response(response)
+                    
+                    # Tambahkan informasi sumber
+                    if source_docs:
+                        sources = set()
+                        for doc in source_docs:
+                            if hasattr(doc, "metadata") and "source" in doc.metadata:
+                                sources.add(doc.metadata["source"])
+                        
+                        if sources:
+                            response += "\n\n**Sumber:**\n"
+                            for source in sources:
+                                response += f"- {source}\n"
+                    
+                    return response, source_docs
+            except Exception as e:
+                logging.error(f"Error saat menggunakan RAG: {str(e)}")
+                return f"⚠️ Terjadi kesalahan saat menggunakan database dokumen: {str(e)}", []
                 
-                return response, source_docs
-                
-        # Jika tidak ada file, gunakan LLM langsung
+        # Jika tidak ada file (mode chat biasa), gunakan LLM dengan konteks riwayat
         else:
             if not st.session_state.get("llm"):
                 return "⚠️ Model AI belum diinisialisasi. Silakan masukkan API Key dan pilih model terlebih dahulu.", []
                 
             with get_openai_callback() as cb:
-                prompt = f"""
-                Kamu adalah AI Business Consultant Pro yang profesional dan membantu.
+                # Dapatkan riwayat chat
+                history = st.session_state.get("history", [])
                 
-                Nama kamu adalah "Business AI Pro" dan kamu memiliki pengalaman luas di bidang strategi bisnis,
-                pemasaran, keuangan, manajemen, dan pengembangan produk.
+                # Buat prompt dengan konteks
+                prompt = build_prompt_with_history(query, history)
                 
-                Pertanyaan pengguna: {query}
+                # Log untuk debugging
+                logging.info(f"Menggunakan LLM langsung dengan {len(history)} riwayat chat")
                 
-                Berikan jawaban yang komprehensif, terstruktur, dan bermanfaat.
-                Format respons menggunakan Markdown untuk meningkatkan keterbacaan.
-                """
-                
+                # Jalankan LLM
                 result = st.session_state.llm.invoke(prompt)
                 
                 # Update token usage
