@@ -9,32 +9,6 @@ def render_sidebar():
         st.image("https://www.provincial.com/content/dam/public-web/global/images/micro-illustrations/bbva_manager_man_2.im1705594061549im.png?imwidth=320", width=100)
         st.title("💼 AI Business Consultant")
         
-        # Navigasi
-        st.subheader("📑 Navigasi")
-        
-        # Opsi navigasi
-        nav_options = {
-            "home": "🏠 Beranda",
-            "config": "⚙️ Konfigurasi",
-            "chat": "💬 Chat",
-            "upload": "📂 Upload File"
-        }
-        
-        # Tampilkan opsi navigasi sebagai tombol
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("🏠 Beranda", use_container_width=True):
-                # Kembali ke halaman utama
-                if "nav" in st.session_state:
-                    del st.session_state.nav
-        
-        with col2:
-            if st.button("⚙️ Konfigurasi", use_container_width=True):
-                # Navigasi ke halaman konfigurasi
-                st.session_state.nav = "config"
-                st.switch_page("pages/01_Konfigurasi.py")
-        
         # Informasi model
         st.subheader("🤖 Model AI Aktif")
         
@@ -59,9 +33,8 @@ def render_sidebar():
         else:
             st.error("❌ API Key belum dikonfigurasi")
             
-            # Tampilkan tombol ke halaman konfigurasi
-            if st.button("⚙️ Konfigurasi API Key"):
-                st.switch_page("pages/01_Konfigurasi.py")
+            # Link ke halaman konfigurasi
+            st.info("⚙️ Silakan konfigurasi API Key di halaman **Konfigurasi**")
         
         # Initialize LLM if API key is available and not already initialized
         if st.session_state.api_key and (st.session_state.llm is None or 
